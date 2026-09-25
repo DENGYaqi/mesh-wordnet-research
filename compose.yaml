@@ -1,0 +1,17 @@
+name: mesh-wordnet-research
+services:
+  research:
+    profiles: [training]
+    build: ./research
+    working_dir: /research
+    volumes:
+      - ./research:/research
+    command: ["python", "run_historical.py", "verify"]
+  viewer:
+    build: ./viewer
+    environment:
+      RESEARCH_RUN_DIR: /runs/20260924T161334509381Z
+    volumes:
+      - ./research/runs:/runs:ro
+    ports:
+      - 127.0.0.1:18082:8501

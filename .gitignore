@@ -1,0 +1,12 @@
+.env
+research/runs/
+research/reproduced/
+research/nltk_data/
+research/data/
+research/models/
+research/source/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+._*
