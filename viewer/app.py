@@ -16,7 +16,7 @@ RUN_DIR = Path(os.environ.get("RESEARCH_RUN_DIR", "/runs/20260926T052631818279Z"
 
 st.set_page_config(page_title="MeSH × WordNet | Yseop 2019", page_icon="🔬", layout="wide")
 st.title("MeSH × WordNet")
-st.caption("2019 年 Yseop 实习实验 · 本机私有展示")
+st.caption("2019 年 Yseop 实习实验")
 
 
 @st.cache_data(show_spinner=False)
@@ -50,7 +50,7 @@ with overview:
         "这些是待核查的候选，不是已完成的概念融合。"
     )
     st.markdown("**阅读顺序**　候选配对 → 两侧定义 → 邻近概念关系 → 方法与局限")
-    st.caption(f"展示运行：{RUN_DIR.name} · Python {manifest.get('python', '未知')}")
+    st.caption(f"这批结果由 Python {manifest.get('python', '未知')} 生成")
 
 with candidate_tab:
     st.subheader("浏览候选配对")
@@ -59,10 +59,16 @@ with candidate_tab:
         placeholder="例如 Abattoirs、M0000003 或 abattoir.n.01",
     )
     filtered = search_candidates(candidates, query).reset_index(drop=True)
-    st.caption(f"找到 {len(filtered):,} / {len(candidates):,} 条；点击一行查看两侧定义。")
+    st.caption(f"找到 {len(filtered):,} / {len(candidates):,} 条；选择一行查看两侧定义，也可全选当前搜索结果导出。")
     if filtered.empty:
         st.info("没有找到符合条件的候选。请换一个名称、ID 或 synset 试试。")
     else:
+        table_key = f"candidate_table_{query}"
+        select_all, clear_selection, _ = st.columns([2, 1.4, 4])
+        if select_all.button("全选当前结果"):
+            st.session_state[table_key] = {"selection": {"rows": list(range(len(filtered)))}}
+        if clear_selection.button("清除选择"):
+            st.session_state[table_key] = {"selection": {"rows": []}}
         display = filtered[["MeSH_UI", "Name_MeSH", "Name_WN", "WN_synset"]].rename(
             columns={
                 "MeSH_UI": "MeSH ID",
@@ -77,11 +83,19 @@ with candidate_tab:
             width="stretch",
             height=380,
             on_select="rerun",
-            selection_mode="single-row",
-            key="candidate_table",
+            selection_mode="multi-row",
+            key=table_key,
         )
-        selected = event.selection.rows
-        if selected and selected[0] < len(filtered):
+        selected = [i for i in event.selection.rows if i < len(filtered)]
+        if selected:
+            st.caption(f"已选择 {len(selected):,} 条")
+            st.download_button(
+                "下载所选记录 CSV",
+                filtered.iloc[selected].to_csv(index=False).encode("utf-8-sig"),
+                file_name="mesh_wordnet_selected_candidates.csv",
+                mime="text/csv",
+            )
+        if len(selected) == 1:
             row = filtered.iloc[selected[0]]
             st.divider()
             st.subheader(f"{row['Name_MeSH']} ↔ {row['Name_WN']}")
@@ -95,8 +109,10 @@ with candidate_tab:
                 st.caption(f"Synset：{row['WN_synset']}")
                 st.write(row["def_WN"].strip() or "原记录无定义")
             st.caption(f"历史 SIF 原始值：{row['Similarity_highest']} · 此值不能用于排序或判断正确性")
-        else:
+        elif not selected:
             st.info("选择表格中的一行，查看概念详情。")
+        else:
+            st.info("要查看两侧定义，请只选择一条记录。")
 
 with neighbor_tab:
     st.subheader("邻近概念关系")
