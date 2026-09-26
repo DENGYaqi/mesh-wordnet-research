@@ -1,5 +1,7 @@
 # MeSH–WordNet 概念匹配实验
 
+**2019 年最终实习报告：**[阅读 PDF](docs/Rapport_de_stage_DENG_Yaqi.pdf)。报告同时介绍 MeSH–WordNet 概念匹配实验和 Lexicon 网站／API，记录的是当年的工作，不包含后来新增的复现与语义评分实验。
+
 这个项目复现 2019 年 Yseop 实习中的概念匹配实验。历史 Notebook 的代码保存在 `research/notebooks/`；公开版本移除了运行输出，带输出的原件仅保存在本机。可执行入口是 `research/run_historical.py`。`viewer/` 只读取已保存的实验结果，展示候选配对和邻近概念关系。
 
 这个项目独立运行。实验结果没有写入 Lexicon 词库数据库；概念融合及质量评估当年没有完成。
@@ -52,6 +54,6 @@ docker compose --profile training run --rm research python -u run_historical.py 
 
 候选阶段使用归档的 WordNet V1 筛选集，因为现存 Notebook 无法从原始词典完整重建它。旧训练的随机状态和当年 spaCy 模型版本未留存；新版 spaCy 与 Gensim 的重训向量、训练句数和词表不保证与旧版相同。Python 3.12.0 运行已核对候选标识和定义、邻近结果逐行一致，数值差异见 [VERIFICATION.md](VERIFICATION.md)。历史 SIF 分数全部约为 1，**不能作为匹配准确率或排序依据**。报告中的 3,019 包含被误读的 CSV 表头；2,468 是 2,301 与 167 之和，并非已写入的融合概念数。
 
-GitHub 仓库只包含代码和说明。原始数据、模型和运行结果均被 `.gitignore` 排除，保持本机私有；因此从公开仓库克隆后，展示页不会立即显示历史结果，复现命令也需要先备齐对应数据。详细核对记录见 [VERIFICATION.md](VERIFICATION.md)。
+GitHub 仓库包含代码、说明和上述实习报告。原始数据、模型和运行结果均被 `.gitignore` 排除，保持本机私有；因此从公开仓库克隆后，展示页不会立即显示历史结果，复现命令也需要先备齐对应数据。详细核对记录见 [VERIFICATION.md](VERIFICATION.md)。
 
 `research/notebooks/` 和 `research/requirements-notebooks.txt` 保留 2019 年的查阅档案，不属于本次 Python 3.12 可执行流程。
