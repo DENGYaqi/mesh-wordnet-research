@@ -15,7 +15,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import gensim
@@ -80,17 +80,17 @@ def prepare_training_sentences(rows, field, nlp):
 def train_one(sentences, path):
     # Notebook cells 24–31, with a fixed seed and one worker for repeatability.
     model = Word2Vec(
-        min_count=20, window=2, size=300, sample=6e-5,
+        min_count=20, window=2, vector_size=300, sample=6e-5,
         alpha=0.03, min_alpha=0.0007, negative=20,
         workers=1, hs=1, sg=1, seed=SEED,
     )
     model.build_vocab(sentences)
-    assert model.corpus_count == len(sentences) and model.wv.vocab
+    assert model.corpus_count == len(sentences) and len(model.wv)
     model.train(sentences, total_examples=model.corpus_count, epochs=30)
     model.save(str(path))
     model.wv.save(str(path.with_suffix(".kv")))
     loaded = Word2Vec.load(str(path))
-    assert loaded.vector_size == 300 and len(loaded.wv.vocab) == len(model.wv.vocab)
+    assert loaded.vector_size == 300 and len(loaded.wv) == len(model.wv)
     return loaded
 
 
@@ -188,7 +188,7 @@ def recompute_neighbors(out):
         if not match:
             raise ValueError("Malformed WordNet synset: " + wn_row["synset"])
         child = wordnet.synset(match.group(1))
-        ancestors = child.hypernyms()
+        ancestors = sorted(child.hypernyms(), key=lambda item: item.name())
         visited = set()
         while ancestors:
             parent = ancestors[0]
@@ -205,11 +205,11 @@ def recompute_neighbors(out):
                     "identify_child_MesH": mesh_row["d_name"],
                 })
                 break
-            ancestors = parent.hypernyms()
+            ancestors = sorted(parent.hypernyms(), key=lambda item: item.name())
     saved = read_rows("concept_fusonable_after_second_algo_for_concept_has_hypo.csv")
     normalize = lambda row: tuple(str(row[field]) for field in NEIGHBOR_FIELDS)
     assert len(results) == len(saved) == 167
-    assert {normalize(row) for row in results} == {normalize(row) for row in saved}
+    assert [normalize(row) for row in results] == [normalize(row) for row in saved]
     write_csv(out / "neighbor_matches.csv", NEIGHBOR_FIELDS, results)
     return len(results)
 
@@ -226,7 +226,7 @@ def verify():
 def run_all():
     verify()
     nlp = spacy.load("en_core_web_sm", disable=["ner", "parser"])
-    run_dir = ROOT / "runs" / datetime.utcnow().strftime("%Y%m%dT%H%M%S%fZ")
+    run_dir = ROOT / "runs" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     run_dir.mkdir(parents=True, exist_ok=False)
     print("Preprocessing archived MeSH definitions", flush=True)
     mesh_sentences = prepare_training_sentences(read_rows("data_complet_MeSH(V3).csv"), "scopeNote", nlp)
@@ -245,7 +245,7 @@ def run_all():
         "spacy": spacy.__version__, "gensim": gensim.__version__,
         "seed": SEED, "workers": 1,
         "training_sentences": {"mesh": len(mesh_sentences), "wordnet": len(wn_sentences)},
-        "vocabulary": {"mesh": len(mesh_model.wv.vocab), "wordnet": len(wn_model.wv.vocab)},
+        "vocabulary": {"mesh": len(mesh_model.wv), "wordnet": len(wn_model.wv)},
         "pairs": pairs, "scores_near_one": all_one, "neighbors": neighbors,
         "source_sha256": {
             name: checksum(ROOT / "data" / name)

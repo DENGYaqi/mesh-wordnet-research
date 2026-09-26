@@ -19,10 +19,10 @@ OUT = ROOT / "reproduced" / "sif_from_saved_vectors.csv"
 
 
 def sentence_vector(tokens, model, total_count):
-    tokens = [token for token in tokens if token in model.vocab]
+    tokens = [token for token in tokens if token in model.key_to_index]
     if not tokens:
         tokens = ["building"]  # The fallback in the 2019 notebook.
-    weights = [0.001 / (0.001 + model.vocab[token].count / total_count) for token in tokens]
+    weights = [0.001 / (0.001 + model.get_vecattr(token, "count") / total_count) for token in tokens]
     return np.average([model[token] for token in tokens], axis=0, weights=weights)
 
 
@@ -40,8 +40,8 @@ def main():
     mesh = KeyedVectors.load(str(ROOT / "models" / "wordvector_MeSH.kv"), mmap="r")
     wn = KeyedVectors.load(str(ROOT / "models" / "wordvector_WN.kv"), mmap="r")
     assert mesh.vector_size == wn.vector_size == 300
-    mesh_total = sum(item.count for item in mesh.vocab.values())
-    wn_total = sum(item.count for item in wn.vocab.values())
+    mesh_total = sum(mesh.get_vecattr(token, "count") for token in mesh.key_to_index)
+    wn_total = sum(wn.get_vecattr(token, "count") for token in wn.key_to_index)
     rows = []
     with SOURCE.open(newline="", encoding="utf-8-sig") as stream:
         for row in csv.DictReader(stream):

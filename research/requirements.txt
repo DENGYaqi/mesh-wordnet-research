@@ -1,17 +1,8 @@
-nltk==3.4.5
+nltk==3.9.2
 fuzzywuzzy==0.18.0
-numpy==1.18.5
-scipy==1.4.1
-gensim==3.8.3
-scikit-learn==0.22.2.post1
-spacy==2.3.9
-murmurhash==1.0.2
-cymem==2.0.5
-preshed==3.0.5
-blis==0.4.1
-srsly==1.0.5
-wasabi==0.10.1
-catalogue==1.0.0
-thinc==7.4.5
-importlib-metadata==4.13.0
-en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-2.3.1/en_core_web_sm-2.3.1.tar.gz
+numpy==1.26.4
+scipy==1.12.0
+gensim==4.3.3
+scikit-learn==1.4.2
+spacy==3.7.5
+en_core_web_sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz#sha256=1075c2aa2bc2fee105ab6e90a01a5d1a428c9f5b20a1fa003dc2cb6a438d295e

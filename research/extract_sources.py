@@ -51,8 +51,8 @@ def wordnet_rows():
         yield {
             "name": synset.lemma_names()[0],
             "synset": str(synset),
-            "hyponymes": str(synset.hyponyms()),
-            "hypernyms": str(synset.hypernyms()),
+            "hyponymes": str(sorted(synset.hyponyms(), key=lambda item: item.name())),
+            "hypernyms": str(sorted(synset.hypernyms(), key=lambda item: item.name())),
             "definition": synset.definition(),
             "exemple": str(synset.examples()),
             "list_word": str(synset.lemma_names()),

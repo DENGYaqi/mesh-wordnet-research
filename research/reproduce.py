@@ -39,7 +39,9 @@ def replay_pairs():
     for mesh_name, mesh_row in mesh.items():
         wordnet_name = mesh_name
         if wordnet_name not in wordnet:
-            wordnet_name = stemmer.stem(lemmatizer.lemmatize(mesh_name))
+            lemma = lemmatizer.lemmatize(mesh_name)
+            # NLTK 3.4.5 returned the original casing for words of length <= 2.
+            wordnet_name = lemma if len(lemma) <= 2 else stemmer.stem(lemma)
         if wordnet_name in wordnet:
             wordnet_row = wordnet[wordnet_name]
             pairs.append({
