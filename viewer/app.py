@@ -50,7 +50,6 @@ with overview:
         "这些是待核查的候选，不是已完成的概念融合。"
     )
     st.markdown("**阅读顺序**　候选配对 → 两侧定义 → 邻近概念关系 → 方法与局限")
-    st.caption(f"这批结果由 Python {manifest.get('python', '未知')} 生成")
 
 with candidate_tab:
     st.subheader("浏览候选配对")
@@ -59,16 +58,11 @@ with candidate_tab:
         placeholder="例如 Abattoirs、M0000003 或 abattoir.n.01",
     )
     filtered = search_candidates(candidates, query).reset_index(drop=True)
-    st.caption(f"找到 {len(filtered):,} / {len(candidates):,} 条；选择一行查看两侧定义，也可全选当前搜索结果导出。")
+    st.caption(f"找到 {len(filtered):,} / {len(candidates):,} 条；选择一行查看两侧定义，点击表头左上角可全选。")
     if filtered.empty:
         st.info("没有找到符合条件的候选。请换一个名称、ID 或 synset 试试。")
     else:
         table_key = f"candidate_table_{query}"
-        select_all, clear_selection, _ = st.columns([2, 1.4, 4])
-        if select_all.button("全选当前结果"):
-            st.session_state[table_key] = {"selection": {"rows": list(range(len(filtered)))}}
-        if clear_selection.button("清除选择"):
-            st.session_state[table_key] = {"selection": {"rows": []}}
         display = filtered[["MeSH_UI", "Name_MeSH", "Name_WN", "WN_synset"]].rename(
             columns={
                 "MeSH_UI": "MeSH ID",
@@ -198,6 +192,13 @@ with neighbor_tab:
                 st.caption(f"{node['source']} · {node['identifier'] or '归档候选表未收录 MeSH ID'}")
                 if node["definition"]:
                     st.write(node["definition"])
+                    if node["source"] == "MeSH" and node["identifier"] == "M0014446":
+                        st.caption("中文翻译（便于阅读）")
+                        st.write(
+                            "指作为个体的人（如堕胎申请者），或作为某一群体成员的人（如西班牙裔美国人）。"
+                            "不用于描述各类专业人员（如医师）或职业人员（如图书馆员）；"
+                            "这类人员可使用“职业群体（Occupational Groups）”概念。"
+                        )
                 else:
                     st.info("归档候选表没有这个节点的定义。")
                 st.markdown(f"**关联记录（{len(node['rows'])}）**")
@@ -243,4 +244,3 @@ with method_tab:
         "因此进入邻近概念步骤的配对为 3,017 条；当年报告的 2,468 是 2,301 与 167 之和，"
         "不是已写入的融合概念数。融合写入及质量评估尚未完成。"
     )
-    st.caption("页面只读取本机运行 CSV 与 manifest，不执行训练或新的匹配计算。")
