@@ -10,7 +10,7 @@ services:
   viewer:
     build: ./viewer
     environment:
-      RESEARCH_RUN_DIR: /runs/20260924T161334509381Z
+      RESEARCH_RUN_DIR: /runs/20260926T052631818279Z
     volumes:
       - ./research/runs:/runs:ro
     ports:

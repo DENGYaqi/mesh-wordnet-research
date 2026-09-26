@@ -12,9 +12,9 @@
 docker compose up -d --build viewer
 ```
 
-打开 [本机展示页](http://127.0.0.1:18082/)。页面固定读取私有运行目录 `research/runs/20260924T161334509381Z/` 中的 `manifest.json`、`candidate_scores.csv` 和 `neighbor_matches.csv`。若复制项目时未带上这个被 Git 忽略的目录，页面会提示缺少结果；运行下面的 `all` 生成新目录后，将 `compose.yaml` 中的 `RESEARCH_RUN_DIR` 改为该目录名，再重启 viewer。停止页面用 `docker compose down`。
+打开 [本机展示页](http://127.0.0.1:18082/)。页面固定读取私有的 Python 3.12.0 运行目录 `research/runs/20260926T052631818279Z/` 中的 `manifest.json`、`candidate_scores.csv` 和 `neighbor_matches.csv`；Python 3.7.17 的旧运行目录仍保留。若复制项目时未带上这个被 Git 忽略的目录，页面会提示缺少结果；运行下面的 `all` 生成新目录后，将 `compose.yaml` 中的 `RESEARCH_RUN_DIR` 改为该目录名，再重启 viewer。停止页面用 `docker compose down`。
 
-展示页仍使用独立的 Python 3.11 容器；可执行的实验流程已升级为 Python **3.12.0**。本机无需预装这两套环境。服务只监听 `127.0.0.1:18082`。展示页继续读取升级前的历史运行目录，升级不会改写页面内容。
+展示页仍使用独立的 Python 3.11 容器；可执行的实验流程已升级为 Python **3.12.0**。本机无需预装这两套环境。服务只监听 `127.0.0.1:18082`。页面底部的 Python 版本来自所展示运行目录的 `manifest.json`，不是展示容器自身的版本。
 
 ## 核验与重训
 
