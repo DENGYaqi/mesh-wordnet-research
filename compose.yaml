@@ -15,3 +15,12 @@ services:
       - ./research/runs:/runs:ro
     ports:
       - 127.0.0.1:18082:8501
+  semantic:
+    profiles: [semantic]
+    build:
+      context: ./research
+      dockerfile: semantic.Dockerfile
+    working_dir: /research
+    volumes:
+      - ./research:/research
+    command: ["python", "score_semantic.py", "score"]

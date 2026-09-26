@@ -20,6 +20,27 @@ docker compose up -d --build viewer
 
 在“邻近概念 → 关系图”中，可按 MeSH 名称或 ID、WordNet synset 找到一条结果。默认图显示它及共享节点的邻近记录；打开“查看全部 167 条关系”可浏览全图。拖动节点、缩放和平移图面，点击节点可看归档定义和关联记录；有英文定义时，下方会有中文翻译框。Persons、Neuroticism 和 Vegetarians 的译文已人工核对，其余使用容器内的离线翻译模型，并标注“机器翻译”；原英文始终保留，机译可能有误。首次构建展示容器需联网下载固定校验值的翻译模型，构建后查看和翻译不需要联网。“表格”视图保留原始五列结果。绿色／蓝色实线箭头分别是 MeSH／WordNet 父子关系，紫色虚线是历史候选对应，橙色点线是父概念模糊匹配。跨词库连线均未经人工确认，不表示概念已经融合。图谱只读取已有 CSV，不需要 Neo4j 或联网服务。
 
+## 新定义语义评分（独立实验）
+
+先备齐上文所述的本机历史运行目录和 `research/data/data_complet_WN(v3).csv`，然后运行：
+
+```powershell
+docker compose --profile semantic build semantic
+docker compose --profile semantic run --rm semantic
+```
+
+首次运行会下载固定版本的 `all-MiniLM-L6-v2` ONNX 模型到被 Git 忽略的 `research/models/semantic-minilm-l6-v2/`。模型下载失败时，运行目录的 `manifest.json` 会标记失败原因；已下载完成后可以离线重跑。每次评分都会在 `research/runs/semantic-.../` 新建目录，不修改历史结果或展示页。
+
+新目录中的 `ranked_candidates.csv` 按两侧英文定义的语义相似度降序排列，也附 TF-IDF 定义文本基线、原候选行号及双方标识和定义。分数是**语义相似度**，不是准确率、等价概率或已完成的概念融合。`review_sample.csv` 是在看模型分数前按固定种子抽出的 120 对：普通同名、异名、可能多义的同名各 40 对，其中预先纳入了 `Air` 供词义检查。请人工在 `review_relation` 列填入 `等价`、`MeSH 更宽`、`WordNet 更宽`、`相关但不等价`、`无关` 或 `不确定`。只有人工标为“等价”的配对才算正例。未填写完整之前不会生成任何排序指标。
+
+填完 120 条后，可在容器中运行（把目录名换为实际运行目录）：
+
+```powershell
+docker compose --profile semantic run --rm semantic python score_semantic.py evaluate --run-dir /research/runs/semantic-实际目录名
+```
+
+这会生成 `review_evaluation.json`，分别比较整体和三组样本中语义模型与 TF-IDF 的平均精度，并列出高分误配、低分等价案例；不把 167 条历史邻近结果当作人工正确答案。详见 [SEMANTIC_SCORING.md](SEMANTIC_SCORING.md)。
+
 ## 核验与重训
 
 ```powershell

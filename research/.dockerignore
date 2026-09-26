@@ -2,3 +2,6 @@
 !Dockerfile
 !requirements.txt
 !requirements.lock
+!semantic.Dockerfile
+!semantic-requirements.txt
+!semantic-requirements.lock
