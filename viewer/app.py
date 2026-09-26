@@ -1,15 +1,18 @@
 """Local, read-only presentation of the 2019 MeSH–WordNet experiment."""
 
-import json
 import os
 from pathlib import Path
 
 import streamlit as st
+from streamlit_echarts import st_echarts
 
-from results import ResultsError, load_results, search_candidates
+from results import (
+    ResultsError, build_neighbor_graph, load_results, local_neighbor_rows,
+    search_candidates, search_neighbors,
+)
 
 
-RUN_DIR = Path(os.environ.get("RESEARCH_RUN_DIR", "/runs/20260924T161334509381Z"))
+RUN_DIR = Path(os.environ.get("RESEARCH_RUN_DIR", "/runs/20260926T052631818279Z"))
 
 st.set_page_config(page_title="MeSH × WordNet | Yseop 2019", page_icon="🔬", layout="wide")
 st.title("MeSH × WordNet")
@@ -98,54 +101,114 @@ with candidate_tab:
 with neighbor_tab:
     st.subheader("邻近概念关系")
     st.write("这里记录了历史流程中识别出的 167 条父子概念比较结果。")
-    event = st.dataframe(
-        neighbors[
-            [
-                "identify_father_MeSH",
-                "identify_child_MesH",
-                "synset_father_wn",
-                "synset_child_wn",
-                "Parti_Ratio(fuzz)_between_father_concept",
-            ]
-        ].rename(
-            columns={
+    graph_tab, table_tab = st.tabs(["关系图", "表格"])
+    with graph_tab:
+        query = st.text_input("搜索 MeSH 名称或 ID、WordNet synset", key="neighbor_search")
+        matches = search_neighbors(neighbors, candidates, query)
+        if matches.empty:
+            st.info("没有找到符合条件的邻近概念记录，请换一个名称、ID 或 synset。")
+        else:
+            selected_index = st.selectbox(
+                "选择一条邻近概念记录",
+                matches.index.tolist(),
+                format_func=lambda i: (
+                    f"{neighbors.at[i, 'identify_father_MeSH']} → {neighbors.at[i, 'identify_child_MesH']}"
+                    f"　｜　{neighbors.at[i, 'synset_father_wn']} → {neighbors.at[i, 'synset_child_wn']}"
+                ),
+            )
+            full_graph = st.toggle("查看全部 167 条关系", key="full_neighbor_graph")
+            visible = neighbors if full_graph else local_neighbor_rows(neighbors, selected_index)
+            try:
+                nodes, links = build_neighbor_graph(candidates, visible, show_labels=not full_graph)
+            except ResultsError as exc:
+                st.error(str(exc))
+                st.stop()
+            focal = neighbors.loc[selected_index]
+            focal_nodes = {
+                ("MeSH", focal["identify_father_MeSH"]), ("MeSH", focal["identify_child_MesH"]),
+                ("WordNet", focal["synset_father_wn"]), ("WordNet", focal["synset_child_wn"]),
+            }
+            by_id = {node["id"]: node for node in nodes}
+            for node in nodes:
+                node["label"] = {"show": not full_graph and (node["source"], node["name"]) in focal_nodes}
+            for link in links:
+                if link["kind"] == "fuzzy":
+                    link["label"]["show"] = (
+                        not full_graph
+                        and by_id[link["source"]]["name"] == focal["identify_father_MeSH"]
+                        and by_id[link["target"]]["name"] == focal["synset_father_wn"]
+                    )
+            options = {
+                "tooltip": {"trigger": "item"},
+                "legend": {"data": ["MeSH", "WordNet"], "top": 0},
+                "animationDuration": 300,
+                "series": [{
+                    "type": "graph", "layout": "force", "roam": True, "draggable": True,
+                    "zoom": 0.85 if not full_graph else 0.65,
+                    "data": nodes, "links": links,
+                    "categories": [
+                        {"name": "MeSH", "itemStyle": {"color": "#579775"}},
+                        {"name": "WordNet", "itemStyle": {"color": "#628fc4"}},
+                    ],
+                    "label": {"show": False, "position": "right", "fontSize": 11},
+                    "emphasis": {"focus": "adjacency"},
+                    "force": {
+                        "repulsion": 210 if not full_graph else 95,
+                        "edgeLength": 135 if not full_graph else 75,
+                        "layoutAnimation": not full_graph,
+                    },
+                }],
+            }
+            st.caption(
+                "绿色为 MeSH，蓝色为 WordNet；实线箭头表示父子关系，紫色虚线表示历史候选对应，"
+                "橙色点线表示父概念模糊匹配。跨词库连线均待核查，不表示已融合或人工确认。"
+            )
+            st.caption(f"当前图：{len(visible)} 条记录、{len(nodes)} 个节点。可拖动节点、滚轮缩放、拖动空白处平移；悬停或点击节点看详情。")
+            chart_col, detail_col = st.columns([3, 1])
+            with chart_col:
+                event = st_echarts(
+                    options=options, height="680px", theme="streamlit",
+                    events={"click": "function(params) { return params.dataType === 'node' ? params.data.id : undefined; }"},
+                    key="neighbor_graph",
+                )
+            selected_id = getattr(event, "chart_event", None) if event is not None else None
+            default_id = "mesh:" + next(
+                node["identifier"] for node in nodes
+                if node["source"] == "MeSH" and node["name"] == neighbors.at[selected_index, "identify_child_MesH"]
+            )
+            node = by_id.get(selected_id, by_id[default_id])
+            with detail_col:
+                st.markdown(f"**{node['name']}**")
+                st.caption(f"{node['source']} · {node['identifier'] or '归档候选表未收录 MeSH ID'}")
+                if node["definition"]:
+                    st.write(node["definition"])
+                else:
+                    st.info("归档候选表没有这个节点的定义。")
+                st.markdown(f"**关联记录（{len(node['rows'])}）**")
+                for index in node["rows"]:
+                    row = neighbors.loc[index]
+                    st.caption(
+                        f"{row['identify_father_MeSH']} → {row['identify_child_MesH']} · "
+                        f"{row['synset_father_wn']} → {row['synset_child_wn']} · "
+                        f"模糊匹配 {row['Parti_Ratio(fuzz)_between_father_concept']}"
+                    )
+    with table_tab:
+        st.dataframe(
+            neighbors[
+                [
+                    "identify_father_MeSH", "identify_child_MesH",
+                    "synset_father_wn", "synset_child_wn",
+                    "Parti_Ratio(fuzz)_between_father_concept",
+                ]
+            ].rename(columns={
                 "identify_father_MeSH": "MeSH 父概念",
                 "identify_child_MesH": "MeSH 子概念",
                 "synset_father_wn": "WordNet 父概念",
                 "synset_child_wn": "WordNet 子概念",
                 "Parti_Ratio(fuzz)_between_father_concept": "历史模糊匹配值",
-            }
-        ),
-        hide_index=True,
-        width="stretch",
-        height=380,
-        on_select="rerun",
-        selection_mode="single-row",
-        key="neighbor_table",
-    )
-    selected = event.selection.rows
-    if selected and selected[0] < len(neighbors):
-        row = neighbors.iloc[selected[0]]
-        wn_parent = json.dumps(row["synset_father_wn"], ensure_ascii=False)
-        wn_child = json.dumps(row["synset_child_wn"], ensure_ascii=False)
-        mesh_parent = json.dumps(row["identify_father_MeSH"], ensure_ascii=False)
-        mesh_child = json.dumps(row["identify_child_MesH"], ensure_ascii=False)
-        graph = f"""digraph G {{
-          rankdir=LR; graph [bgcolor=transparent, pad=0.25];
-          node [shape=box, style="rounded,filled", color="#d3dae4", fillcolor="#f5f7fa"];
-          subgraph cluster_wordnet {{ label="WordNet"; color="#6e90bf";
-            wn_parent [label={wn_parent}]; wn_child [label={wn_child}]; wn_parent -> wn_child; }}
-          subgraph cluster_mesh {{ label="MeSH"; color="#7aa995";
-            mesh_parent [label={mesh_parent}]; mesh_child [label={mesh_child}]; mesh_parent -> mesh_child; }}
-        }}"""
-        st.graphviz_chart(graph, width=760)
-        st.caption(
-            "历史父概念名称模糊匹配值："
-            f"{row['Parti_Ratio(fuzz)_between_father_concept']}。"
-            "该关系图表示原记录中的局部层级，不表示概念已融合或人工确认。"
+            }),
+            hide_index=True, width="stretch", height=450,
         )
-    else:
-        st.info("选择一行，查看两侧的父子关系。")
 
 with method_tab:
     st.subheader("方法、来源与结果边界")
