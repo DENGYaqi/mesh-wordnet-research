@@ -3,7 +3,11 @@
 import os
 from pathlib import Path
 
+import ctranslate2
+import pandas as pd
+import sentencepiece as spm
 import streamlit as st
+from st_aggrid import AgGrid, GridOptionsBuilder
 from streamlit_echarts import st_echarts
 
 from results import (
@@ -13,6 +17,17 @@ from results import (
 
 
 RUN_DIR = Path(os.environ.get("RESEARCH_RUN_DIR", "/runs/20260926T052631818279Z"))
+REVIEWED_TRANSLATIONS = {
+    "M0014446": (
+        "指作为个体的人（如堕胎申请者），或作为某一群体成员的人（如西班牙裔美国人）。"
+        "不用于描述各类专业人员（如医师）或职业人员（如图书馆员）；"
+        "这类人员可使用“职业群体（Occupational Groups）”概念。"
+    ),
+    "M000630288": (
+        "一种人格特质：面对威胁、挫折或失去时，倾向于产生愤怒、焦虑、沮丧、尴尬、悲伤等负面情绪。"
+    ),
+    "M000597380": "不吃肉的人。",
+}
 
 st.set_page_config(page_title="MeSH × WordNet | Yseop 2019", page_icon="🔬", layout="wide")
 st.title("MeSH × WordNet")
@@ -22,6 +37,22 @@ st.caption("2019 年 Yseop 实习实验")
 @st.cache_data(show_spinner=False)
 def read_run(path: str):
     return load_results(Path(path))
+
+
+@st.cache_resource(show_spinner=False)
+def chinese_translator():
+    model = Path(os.environ["TRANSLATION_MODEL_DIR"])
+    return ctranslate2.Translator(str(model / "model"), device="cpu"), spm.SentencePieceProcessor(
+        model_file=str(model / "sentencepiece.model")
+    )
+
+
+@st.cache_data(show_spinner=False)
+def translate_definition(definition: str) -> str:
+    translator, tokenizer = chinese_translator()
+    tokens = tokenizer.encode(definition, out_type=str)
+    result = translator.translate_batch([tokens], replace_unknowns=True, beam_size=4)[0]
+    return "".join(result.hypotheses[0]).replace("▁", " ").strip()
 
 
 try:
@@ -70,17 +101,32 @@ with candidate_tab:
                 "Name_WN": "WordNet 名称",
                 "WN_synset": "WordNet synset",
             }
-        )
-        event = st.dataframe(
+        ).copy()
+        display.insert(0, "选择", "")
+        display["_row_index"] = range(len(display))
+        grid = GridOptionsBuilder.from_dataframe(display)
+        grid.configure_default_column(sortable=True, resizable=True)
+        grid.configure_selection("multiple", use_checkbox=True, header_checkbox=True)
+        grid.configure_column("选择", headerName="", width=48, pinned="left", sortable=False, resizable=False)
+        grid.configure_column("MeSH ID", width=115)
+        grid.configure_column("MeSH 名称", width=155)
+        grid.configure_column("WordNet 名称", width=155)
+        grid.configure_column("WordNet synset", flex=1, minWidth=210)
+        grid.configure_column("_row_index", hide=True)
+        grid_options = grid.build()
+        grid_options["suppressRowClickSelection"] = False
+        event = AgGrid(
             display,
-            hide_index=True,
-            width="stretch",
+            gridOptions=grid_options,
             height=380,
-            on_select="rerun",
-            selection_mode="multi-row",
+            theme="streamlit",
+            update_on=["selectionChanged"],
+            show_search=False,
+            show_download_button=False,
             key=table_key,
         )
-        selected = [i for i in event.selection.rows if i < len(filtered)]
+        selected_rows = event.selected_rows
+        selected = selected_rows["_row_index"].astype(int).tolist() if isinstance(selected_rows, pd.DataFrame) else []
         if selected:
             st.caption(f"已选择 {len(selected):,} 条")
             st.download_button(
@@ -192,13 +238,14 @@ with neighbor_tab:
                 st.caption(f"{node['source']} · {node['identifier'] or '归档候选表未收录 MeSH ID'}")
                 if node["definition"]:
                     st.write(node["definition"])
-                    if node["source"] == "MeSH" and node["identifier"] == "M0014446":
-                        st.caption("中文翻译（便于阅读）")
-                        st.write(
-                            "指作为个体的人（如堕胎申请者），或作为某一群体成员的人（如西班牙裔美国人）。"
-                            "不用于描述各类专业人员（如医师）或职业人员（如图书馆员）；"
-                            "这类人员可使用“职业群体（Occupational Groups）”概念。"
-                        )
+                    translation = REVIEWED_TRANSLATIONS.get(node["identifier"])
+                    if translation is None:
+                        translation = translate_definition(node["definition"])
+                    with st.container(border=True):
+                        st.markdown("**中文翻译**")
+                        st.write(translation)
+                        if node["identifier"] not in REVIEWED_TRANSLATIONS:
+                            st.caption("机器翻译，仅供参考；请以英文原文为准。")
                 else:
                     st.info("归档候选表没有这个节点的定义。")
                 st.markdown(f"**关联记录（{len(node['rows'])}）**")
